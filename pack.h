@@ -63,12 +63,12 @@ namespace pack {
 	struct piece {
 		const std::string::const_iterator begin;
 		const std::string::const_iterator end;
+		piece(const std::string::const_iterator& _begin, const std::string::const_iterator& _end) : begin(_begin), end(_end) { }
 	};
 
 	template<typename raw_type, endian order = endian::native> struct integral {
 		struct decoder : public piece {
-			decoder(const std::string::const_iterator& _begin, const std::string::const_iterator& _end) noexcept : piece{_begin, _end} {
-			}
+			using piece::piece;
 			auto decode() const noexcept {
 				raw_type temp(0);
 				byte_copy<order>(reinterpret_cast<char*>(&temp), begin, end);
@@ -99,8 +99,7 @@ namespace pack {
 
 	struct stringer {
 		struct decoder : public piece {
-			decoder(const std::string::const_iterator& _begin, const std::string::const_iterator& _end) noexcept : piece{_begin, _end} {
-			}
+			using piece::piece;
 			auto decode() const {
 				return std::make_tuple(std::string(begin, end));
 			}
