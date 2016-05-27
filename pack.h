@@ -95,6 +95,47 @@ namespace pack {
 		}
 	};
 
+	template<typename raw_type = unsigned long long, endian order = endian::little> struct compressed;
+	template<typename raw_type> struct compressed<raw_type, endian::little> {
+		static const size_t block_size = 1 << 7;
+		static const size_t mask = block_size - 1;
+
+		struct decoder : public piece {
+			using piece::piece;
+			auto decode() const noexcept {
+				raw_type factor = 1, ret = 0;
+				auto current = begin;
+				while (current < end) {
+					ret += (static_cast<unsigned char>(*current++) & mask) * factor;
+					factor *= block_size;
+				}
+				return std::make_tuple(ret);
+			}
+		};
+
+		static std::string pack(raw_type value) noexcept {
+			std::string ret;
+			if (value == 0)
+				return std::string("\0", 1);
+			while (value) {
+				unsigned char current = value % block_size;
+				ret.push_back(current | block_size);
+				value /= block_size;
+			}
+			if (ret.size())
+				*(ret.end() - 1) &= mask;
+			return ret;
+		}
+		static decoder unpack(std::string::const_iterator& current, const std::string::const_iterator& end) {
+			std::string::const_iterator begin = current;
+			while (static_cast<unsigned char>(*current++) & block_size) {
+				if (current == end)
+					throw exception("Incomplete compressed integer");
+			}
+			return decoder(begin, current);
+		}
+	};
+
 	enum class padding { null };
 
 	struct stringer {
