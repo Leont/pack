@@ -17,33 +17,20 @@ namespace pack {
 
 	namespace {
 		template<typename head_type, typename... tail_types> struct follow_up {
-			typedef typename head_type::template chain<tail_types...> packer;
-			template<typename... argument_types> static std::string pack(const argument_types&... arguments) {
-				return packer::pack(arguments...);
+			template<typename head_argument, typename... tail_arguments> static std::string pack(const head_argument& data, const tail_arguments&... arguments) {
+				return head_type::pack(std::move(data)) + follow_up<tail_types...>::pack(arguments...);
 			}
 			static auto unpack(std::string::const_iterator current, const std::string::const_iterator& end) {
 				auto ret = head_type::unpack(current, end);
 				return tuple_cat(std::move(ret), follow_up<tail_types...>::unpack(current, end));
 			}
 		};
-
-		struct finalizer { };
-
 		template<typename head_type> struct follow_up<head_type> {
-			typedef typename head_type::template chain<finalizer> packer;
-			template<typename... argument_types> static std::string pack(const argument_types&... arguments) {
-				return packer::pack(arguments...);
+			template<typename head_argument> static std::string pack(const head_argument& data) {
+				return head_type::pack(data);
 			}
 			static auto unpack(std::string::const_iterator current, const std::string::const_iterator& end) {
 				return head_type::unpack(current, end);
-			}
-		};
-		template<> struct follow_up<finalizer> {
-			static std::string pack() noexcept {
-				return std::string();
-			}
-			template<typename... argument_types> static std::string pack(const argument_types&...) noexcept {
-				return std::string();
 			}
 		};
 
@@ -88,13 +75,11 @@ namespace pack {
 				return std::make_tuple(temp);
 			}
 		};
-		template<typename... followers> struct chain {
-			template<typename... argument_types> static std::string pack(raw_type value, const argument_types&... arguments) noexcept {
-				char buffer[sizeof(raw_type)];
-				byte_copy<order>(buffer, reinterpret_cast<const char*>(&value), reinterpret_cast<const char*>(&value + 1));
-				return std::string(buffer, buffer + sizeof buffer) + follow_up<followers...>::pack(arguments...);
-			}
-		};
+		static std::string pack(raw_type value) noexcept {
+			char buffer[sizeof(raw_type)];
+			byte_copy<order>(buffer, reinterpret_cast<const char*>(&value), reinterpret_cast<const char*>(&value + 1));
+			return std::string(buffer, buffer + sizeof buffer);
+		}
 		static auto unpack(std::string::const_iterator& current, const std::string::const_iterator& end) noexcept {
 			static const std::string null(sizeof(raw_type), '\0');
 			static const decoder null_decoder(null.begin(), null.end());
@@ -123,13 +108,11 @@ namespace pack {
 	};
 
 	template<int length, enum padding = padding::null> struct fixed_string : public stringer {
-		template<typename... followers> struct chain {
-			template<typename... argument_types> static std::string pack(std::string value, const argument_types&... arguments) {
-				if (value.size() != length)
-					throw exception("Packed string should be of length " + std::to_string(length));
-				return value + follow_up<followers...>::pack(arguments...);
-			}
-		};
+		static std::string pack(std::string value) {
+			if (value.size() != length)
+				throw exception("Packed string should be of length " + std::to_string(length));
+			return value;
+		}
 		static auto unpack(std::string::const_iterator& current, const std::string::const_iterator& end) {
 			if (current + length <= end) {
 				auto begin = current;
@@ -142,11 +125,9 @@ namespace pack {
 	};
 
 	template<typename length_encoder = integral<unsigned, endian::little>> struct varchar : public stringer {
-		template<typename... followers> struct chain {
-			template<typename... argument_types> static std::string pack(std::string value, const argument_types&... arguments) {
-				return follow_up<length_encoder>::pack(value.size()) + value + follow_up<followers...>::pack(arguments...);
-			}
-		};
+		static std::string pack(std::string value) {
+			return length_encoder::pack(value.size()) + value;
+		}
 		static auto unpack(std::string::const_iterator& current, const std::string::const_iterator& end) {
 			size_t length = std::get<0>(std::get<0>(length_encoder::unpack(current, end)).decode());
 			if (unsigned(end - current) <= length) {
