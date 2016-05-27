@@ -22,7 +22,7 @@ namespace pack {
 			}
 			static auto unpack(std::string::const_iterator current, const std::string::const_iterator& end) {
 				auto ret = head_type::unpack(current, end);
-				return tuple_cat(std::move(ret), follow_up<tail_types...>::unpack(current, end));
+				return tuple_cat(std::make_tuple(std::move(ret)), follow_up<tail_types...>::unpack(current, end));
 			}
 		};
 		template<typename head_type> struct follow_up<head_type> {
@@ -30,7 +30,7 @@ namespace pack {
 				return head_type::pack(data);
 			}
 			static auto unpack(std::string::const_iterator current, const std::string::const_iterator& end) {
-				return head_type::unpack(current, end);
+				return std::make_tuple(head_type::unpack(current, end));
 			}
 		};
 
@@ -80,17 +80,17 @@ namespace pack {
 			byte_copy<order>(buffer, reinterpret_cast<const char*>(&value), reinterpret_cast<const char*>(&value + 1));
 			return std::string(buffer, buffer + sizeof buffer);
 		}
-		static auto unpack(std::string::const_iterator& current, const std::string::const_iterator& end) noexcept {
+		static decoder unpack(std::string::const_iterator& current, const std::string::const_iterator& end) noexcept {
 			static const std::string null(sizeof(raw_type), '\0');
 			static const decoder null_decoder(null.begin(), null.end());
 
 			if (current + sizeof(raw_type) <= end) {
 				auto begin = current;
 				current += sizeof(raw_type);
-				return std::make_tuple(decoder(begin, current));
+				return decoder(begin, current);
 			}
 			else {
-				return std::make_tuple(null_decoder);
+				return null_decoder;
 			}
 		}
 	};
@@ -112,14 +112,14 @@ namespace pack {
 				throw exception("Packed string should be of length " + std::to_string(length));
 			return value;
 		}
-		static auto unpack(std::string::const_iterator& current, const std::string::const_iterator& end) {
+		static decoder unpack(std::string::const_iterator& current, const std::string::const_iterator& end) {
 			if (current + length <= end) {
 				auto begin = current;
 				current += length;
-				return std::make_tuple(decoder(begin, current));
+				return decoder(begin, current);
 			}
 			else
-				throw exception("Not enough data left in buffer to unpack fixed_string");
+				throw exception("Not enough data left in buffer to unpack fixed_string, expected " + std::to_string(length) + " got " + std::to_string(end - current) );
 		}
 	};
 
@@ -127,15 +127,15 @@ namespace pack {
 		static std::string pack(std::string value) {
 			return length_encoder::pack(value.size()) + value;
 		}
-		static auto unpack(std::string::const_iterator& current, const std::string::const_iterator& end) {
-			size_t length = std::get<0>(std::get<0>(length_encoder::unpack(current, end)).decode());
-			if (unsigned(end - current) <= length) {
+		static decoder unpack(std::string::const_iterator& current, const std::string::const_iterator& end) {
+			size_t length = std::get<0>(length_encoder::unpack(current, end).decode());
+			if (unsigned(end - current) >= length) {
 				auto begin = current;
 				current += length;
-				return std::make_tuple(decoder(begin, current + length));
+				return decoder(begin, current + length);
 			}
 			else
-				throw exception("Not enough data left in unpack of varchar");
+				throw exception("Not enough data left in buffer to unpack varchar, expected " + std::to_string(length) + " got " + std::to_string(end - current) );
 		}
 	};
 
