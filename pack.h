@@ -7,14 +7,26 @@
 namespace pack {
 	enum class endian { little, big, native = little };
 
-	class exception : public std::exception {
-		std::string message;
-		public:
-		exception(const std::string& _message) : message(_message) { }
-		virtual const char* what() const noexcept {
-			return message.c_str();
-		}
-	};
+	namespace exception {
+		class base: public std::exception {
+			std::string message;
+			protected:
+			explicit base(const std::string& _message) : message(_message) { }
+			public:
+			virtual const char* what() const noexcept override final {
+				return message.c_str();
+			}
+		};
+		class invalid_input : public base {
+			public:
+			explicit invalid_input(const std::string& _message) : base(_message) { }
+		};
+		class out_of_bounds : public base {
+			public:
+			explicit out_of_bounds(const std::string& type) : base("Insufficient data in buffer to unpack " + type) {
+			}
+		};
+	}
 
 	namespace {
 		template<typename head_type, typename... tail_types> struct follow_up {
@@ -75,18 +87,16 @@ namespace pack {
 			byte_copy<order>(buffer, reinterpret_cast<const char*>(&value), reinterpret_cast<const char*>(&value + 1));
 			return std::string(buffer, buffer + sizeof buffer);
 		}
-		static decoder unpack(std::string::const_iterator& current, const std::string::const_iterator& end) noexcept {
+		static decoder unpack(std::string::const_iterator& current, const std::string::const_iterator& end) {
 			static const std::string null(sizeof(raw_type), '\0');
-			static const decoder null_decoder(null.begin(), null.end());
 
 			if (current + sizeof(raw_type) <= end) {
 				auto begin = current;
 				current += sizeof(raw_type);
 				return decoder(begin, current);
 			}
-			else {
-				return null_decoder;
-			}
+			else
+				throw exception::out_of_bounds("integer");
 		}
 	};
 
@@ -126,7 +136,7 @@ namespace pack {
 			std::string::const_iterator begin = current;
 			while (static_cast<unsigned char>(*current++) & block_size) {
 				if (current == end)
-					throw exception("Incomplete compressed integer");
+					throw exception::out_of_bounds("compressed integer");
 			}
 			return decoder(begin, current);
 		}
@@ -147,7 +157,7 @@ namespace pack {
 	template<int length, enum padding = padding::null> struct fixed_string : public stringer {
 		static std::string pack(std::string value) {
 			if (value.size() != length)
-				throw exception("Packed string should be of length " + std::to_string(length));
+				throw exception::invalid_input("Packed string should be of length " + std::to_string(length));
 			return value;
 		}
 		static decoder unpack(std::string::const_iterator& current, const std::string::const_iterator& end) {
@@ -157,7 +167,7 @@ namespace pack {
 				return decoder(begin, current);
 			}
 			else
-				throw exception("Not enough data left in buffer to unpack fixed_string, expected " + std::to_string(length) + " got " + std::to_string(end - current) );
+				throw exception::out_of_bounds("fixed_string");
 		}
 	};
 
@@ -173,7 +183,7 @@ namespace pack {
 				return decoder(begin, current + length);
 			}
 			else
-				throw exception("Not enough data left in buffer to unpack varchar, expected " + std::to_string(length) + " got " + std::to_string(end - current) );
+				throw exception::out_of_bounds("varchar");
 		}
 	};
 
