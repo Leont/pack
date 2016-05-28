@@ -20,26 +20,18 @@ namespace pack {
 			template<typename head_argument, typename... tail_arguments> static std::string pack(const head_argument& data, const tail_arguments&... arguments) {
 				return head_type::pack(std::move(data)) + follow_up<tail_types...>::pack(arguments...);
 			}
-			static auto unpack(std::string::const_iterator current, const std::string::const_iterator& end) {
-				auto ret = head_type::unpack(current, end);
-				return tuple_cat(std::make_tuple(std::move(ret)), follow_up<tail_types...>::unpack(current, end));
+			static std::tuple<typename head_type::decoder, typename tail_types::decoder...> unpack(std::string::const_iterator current, const std::string::const_iterator& end) {
+				return tuple_cat(std::make_tuple(head_type::unpack(current, end)), follow_up<tail_types...>::unpack(current, end));
 			}
 		};
 		template<typename head_type> struct follow_up<head_type> {
 			template<typename head_argument> static std::string pack(const head_argument& data) {
 				return head_type::pack(data);
 			}
-			static auto unpack(std::string::const_iterator current, const std::string::const_iterator& end) {
+			static std::tuple<typename head_type::decoder> unpack(std::string::const_iterator current, const std::string::const_iterator& end) {
 				return std::make_tuple(head_type::unpack(current, end));
 			}
 		};
-
-		template<typename decoder> decltype(auto) decode(const decoder& decoding) {
-			return decoding.decode();
-		}
-		template<typename tuple, size_t... I> auto decode_all(const tuple& decoders, std::index_sequence<I...> ) {
-			return std::tuple_cat(decode(std::get<I>(decoders))...);
-		}
 
 		template<enum endian order> void byte_copy(char* target, const char* begin, const char* end);
 		template<> void byte_copy<endian::big>(char* target, const char* begin, const char* end) {
@@ -69,10 +61,10 @@ namespace pack {
 	template<typename raw_type, endian order = endian::native> struct integral {
 		struct decoder : public piece {
 			using piece::piece;
-			auto decode() const noexcept {
+			raw_type decode() const noexcept {
 				raw_type temp(0);
 				byte_copy<order>(reinterpret_cast<char*>(&temp), begin, end);
-				return std::make_tuple(temp);
+				return temp;
 			}
 		};
 		static std::string pack(raw_type value) noexcept {
@@ -102,14 +94,14 @@ namespace pack {
 
 		struct decoder : public piece {
 			using piece::piece;
-			auto decode() const noexcept {
+			raw_type decode() const noexcept {
 				raw_type factor = 1, ret = 0;
 				auto current = begin;
 				while (current < end) {
 					ret += (static_cast<unsigned char>(*current++) & mask) * factor;
 					factor *= block_size;
 				}
-				return std::make_tuple(ret);
+				return ret;
 			}
 		};
 
@@ -141,8 +133,8 @@ namespace pack {
 	struct stringer {
 		struct decoder : public piece {
 			using piece::piece;
-			auto decode() const {
-				return std::make_tuple(std::string(begin, end));
+			std::string decode() const {
+				return std::string(begin, end);
 			}
 		};
 	};
@@ -169,7 +161,7 @@ namespace pack {
 			return length_encoder::pack(value.size()) + value;
 		}
 		static decoder unpack(std::string::const_iterator& current, const std::string::const_iterator& end) {
-			size_t length = std::get<0>(length_encoder::unpack(current, end).decode());
+			size_t length = length_encoder::unpack(current, end).decode();
 			if (unsigned(end - current) >= length) {
 				auto begin = current;
 				current += length;
@@ -180,8 +172,16 @@ namespace pack {
 		}
 	};
 
-	template<typename... elements> struct format {
+	template<typename... elements> class format {
 		typedef follow_up<elements...> packer;
+
+		template<typename decoder> static decltype(auto) decode(const decoder& decoding) {
+			return decoding.decode();
+		}
+		template<typename tuple, size_t... I> static auto decode_all(const tuple& decoders, std::index_sequence<I...> ) {
+			return std::make_tuple(decode(std::get<I>(decoders))...);
+		}
+		public:
 		template<typename... argument_types> static std::string pack(const argument_types&... arguments) {
 			return packer::pack(arguments...);
 		}
@@ -191,6 +191,5 @@ namespace pack {
 			using Indices = std::make_index_sequence<std::tuple_size<std::decay_t<decltype(plan)>>::value>;
 			return decode_all(plan, Indices{});
 		}
-
 	};
 }
