@@ -204,11 +204,12 @@ namespace pack {
 
 	template<typename... elements> class format {
 		typedef follow_up<elements...> packer;
+		constexpr size_t size = sizeof...(elements);
 
-		template<typename decoder> static decltype(auto) decode(const decoder& decoding) {
+		template<typename decoder> static auto decode(const decoder& decoding) -> decltype(decoding.decode()) {
 			return decoding.decode();
 		}
-		template<typename tuple, size_t... I> static auto decode_all(const tuple& decoders, std::index_sequence<I...> ) {
+		template<typename tuple, size_t... I> static auto decode_all(const tuple& decoders, std::index_sequence<I...> ) -> std::tuple<decltype(decode(std::get<I>(decoders)))...> {
 			return std::make_tuple(decode(std::get<I>(decoders))...);
 		}
 		public:
