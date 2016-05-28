@@ -142,23 +142,51 @@ namespace pack {
 		}
 	};
 
-	enum class padding { null };
+	namespace padding {
+		struct none {
+			static std::string add_padding(const std::string& value, size_t length) {
+				if (value.size() != length)
+					throw exception::invalid_input("Packed string should be of length " + std::to_string(length));
+				return value;
+			}
+			static std::string strip_padding(std::string value) noexcept {
+				return value;
+			}
+		};
 
-	struct stringer {
+		template<char character> struct byte_padder {
+			static std::string add_padding(std::string value, size_t length) {
+				if (value.length() == length)
+					return value;
+				else if (value.size() > length)
+					throw exception::invalid_input("Can't pack string longer than fixed length");
+				else
+					return value.append(length - value.size(), character);
+			}
+			static std::string strip_padding(std::string value) noexcept {
+				size_t end = value.find_last_not_of(character);
+				if (end == std::string::npos)
+					return std::string();
+				else if (value.begin() + end == value.end())
+					return value;
+				else
+					return std::string(value.begin(), value.begin() + end + 1);
+			}
+		};
+		using null = byte_padder<'\0'>;
+		using space = byte_padder<' '>;
+	}
+
+	template<int length, typename pad = padding::none> struct fixed_string {
 		using data_type = std::string;
 		struct decoder : public piece {
 			using piece::piece;
-			std::string decode() const {
-				return std::string(begin, end);
+			std::string decode() const noexcept {
+				return pad::strip_padding(std::string(begin, end));
 			}
 		};
-	};
-
-	template<int length, enum padding = padding::null> struct fixed_string : public stringer {
 		static std::string pack(std::string value) {
-			if (value.size() != length)
-				throw exception::invalid_input("Packed string should be of length " + std::to_string(length));
-			return value;
+			return pad::add_padding(value, length);
 		}
 		static decoder unpack(std::string::const_iterator& current, const std::string::const_iterator& end) {
 			if (current + length <= end) {
@@ -171,7 +199,14 @@ namespace pack {
 		}
 	};
 
-	template<typename length_encoder = integral<unsigned, endian::little>> struct varchar : public stringer {
+	template<typename length_encoder = integral<unsigned, endian::little>> struct varchar {
+		using data_type = std::string;
+		struct decoder : public piece {
+			using piece::piece;
+			std::string decode() const noexcept {
+				return std::string(begin, end);
+			}
+		};
 		static std::string pack(std::string value) {
 			return length_encoder::pack(value.size()) + value;
 		}
