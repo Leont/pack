@@ -2,6 +2,7 @@
 #include <tuple>
 #include <utility>
 #include <limits>
+#include <vector>
 
 namespace pack {
 	enum class endian { little, big, native = little };
@@ -169,6 +170,35 @@ namespace pack {
 			}
 			else
 				throw exception("Not enough data left in buffer to unpack varchar, expected " + std::to_string(length) + " got " + std::to_string(end - current) );
+		}
+	};
+
+	template<typename element_encoder, typename length_encoder> struct sequence {
+		class decoder {
+			using element_type = decltype(std::declval<element_encoder::decoder>().decode());
+			using decoder_type = typename element_encoder::decoder;
+			std::vector<decoder_type> elems;
+			public:
+			decoder(std::vector<decoder_type> _elems) : elems(_elems) { }
+			std::vector<element_type> decode() const {
+				std::vector<element_type> ret;
+				for (const auto& piece : elems)
+					ret.push_back(ret.decode());
+				return ret;
+			}
+		};
+		template<typename argument_type> static std::string pack(const std::vector<argument_type>& elements) {
+			std::string ret = length_encoder::pack(elements.size());
+			for (const auto& elem: elements)
+				ret += element_encoder::pack(elem);
+			return ret;
+		}
+		static decoder unpack(std::string::const_iterator& current, const std::string::const_iterator& end) {
+			size_t length = length_encoder::unpack(current, end).decode();
+			std::vector<piece> pieces;
+			while (length--)
+				pieces.push_back(element_encoder::unpack(current, end));
+			return decoder(std::move(pieces));
 		}
 	};
 
