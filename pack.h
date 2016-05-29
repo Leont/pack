@@ -28,6 +28,10 @@ namespace pack {
 		};
 	}
 
+	struct current_iterator {
+		using data_type = std::string::const_iterator;
+	};
+
 	namespace {
 		template<typename head_type, typename... tail_types> struct follow_up {
 			template<typename head_argument, typename... tail_arguments> static std::string pack(const head_argument& data, const tail_arguments&... arguments) {
@@ -47,41 +51,53 @@ namespace pack {
 			}
 		};
 
-		template<enum endian order> void byte_copy(char* target, const char* begin, const char* end);
-		template<> void byte_copy<endian::big>(char* target, const char* begin, const char* end) {
-			auto current = end;
-			while (--current >= begin) {
-				*target++ = *current;
+		template<typename... tail_types> struct follow_up<current_iterator, tail_types...> {
+			template<typename... tail_arguments> static std::string pack(const tail_arguments&... arguments) {
+				return follow_up<tail_types...>::pack(arguments...);
 			}
+			static std::tuple<std::string::const_iterator, typename tail_types::data_type...> unpack(std::string::const_iterator current, const std::string::const_iterator& end) {
+				auto first = std::make_tuple(current);
+				return tuple_cat(std::move(first), follow_up<tail_types...>::unpack(current, end));
+			}
+		};
+		template<> struct follow_up<current_iterator> {
+			static std::string pack() {
+				return std::string();
+			}
+			static std::tuple<std::string::const_iterator> unpack(std::string::const_iterator current, const std::string::const_iterator&) {
+				return std::make_tuple(current);
+			}
+		};
+
+		template<enum endian order> void byte_copy(char* target, const char* begin, const char* end) noexcept ;
+		template<> void byte_copy<endian::big>(char* target, const char* begin, const char* end) noexcept {
+			auto current = end;
+			while (--current >= begin)
+				*target++ = *current;
 		}
 
-		template<> void byte_copy<endian::native>(char* target, const char* begin, const char* end) {
+		template<> void byte_copy<endian::native>(char* target, const char* begin, const char* end) noexcept {
 			auto current = begin;
 			while(current < end)
 				*target++ = *current++;
-		}
-
-		template<enum endian order> void byte_copy(char* target, const std::string::const_iterator& begin, const std::string::const_iterator& end) noexcept {
-			return byte_copy<order>(target, &*begin, &*end);
 		}
 	}
 
 	template<typename raw_type, endian order = endian::native> struct integral {
 		using data_type = raw_type;
+		static constexpr size_t data_size = sizeof(raw_type);
 		static std::string pack(raw_type value) noexcept {
-			char buffer[sizeof(raw_type)];
+			char buffer[data_size];
 			byte_copy<order>(buffer, reinterpret_cast<const char*>(&value), reinterpret_cast<const char*>(&value + 1));
-			return std::string(buffer, buffer + sizeof buffer);
+			return std::string(buffer, buffer + data_size);
 		}
 		static data_type unpack(std::string::const_iterator& current, const std::string::const_iterator& end) {
-			static const std::string null(sizeof(raw_type), '\0');
-
-			if (current + sizeof(raw_type) <= end) {
+			if (current + data_size <= end) {
 				auto begin = current;
-				current += sizeof(raw_type);
+				current += data_size;
 
 				raw_type temp(0);
-				byte_copy<order>(reinterpret_cast<char*>(&temp), begin, current);
+				byte_copy<order>(reinterpret_cast<char*>(&temp), &*begin, &*current);
 				return temp;
 			}
 			else
