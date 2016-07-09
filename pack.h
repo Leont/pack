@@ -6,6 +6,7 @@
 
 namespace pack {
 	enum class endian { little, big, native = little };
+	enum class sign { yes = false, no = true };
 
 	namespace exception {
 		class base: public std::exception {
@@ -81,12 +82,22 @@ namespace pack {
 			while(current < end)
 				*target++ = *current++;
 		}
+
+		template<size_t size, sign signedness> struct integer_for;
+		template<> struct integer_for<64, sign::no > { using type = uint64_t; };
+		template<> struct integer_for<64, sign::yes> { using type =  int64_t; };
+		template<> struct integer_for<32, sign::no > { using type = uint32_t; };
+		template<> struct integer_for<32, sign::yes> { using type =  int32_t; };
+		template<> struct integer_for<16, sign::no > { using type = uint16_t; };
+		template<> struct integer_for<16, sign::yes> { using type =  int16_t; };
+		template<> struct integer_for<8,  sign::no > { using type = uint8_t ; };
+		template<> struct integer_for<8,  sign::yes> { using type =  int8_t ; };
 	}
 
-	template<typename raw_type, endian order = endian::native> struct integral {
-		using data_type = raw_type;
-		static constexpr size_t data_size = sizeof(raw_type);
-		static std::string pack(raw_type value) noexcept {
+	template<size_t size, sign sign, endian order = endian::native> struct integral {
+		using data_type = typename integer_for<size, sign>::type;
+		static constexpr size_t data_size = sizeof(data_type);
+		static std::string pack(data_type value) noexcept {
 			char buffer[data_size];
 			byte_copy<order>(buffer, reinterpret_cast<const char*>(&value), reinterpret_cast<const char*>(&value + 1));
 			return std::string(buffer, buffer + data_size);
@@ -96,7 +107,7 @@ namespace pack {
 				auto begin = current;
 				current += data_size;
 
-				raw_type temp(0);
+				data_type temp(0);
 				byte_copy<order>(reinterpret_cast<char*>(&temp), &*begin, &*current);
 				return temp;
 			}
@@ -105,10 +116,8 @@ namespace pack {
 		}
 	};
 
-	enum class signedness { yes, no };
-
-	template<signedness sign = signedness::no, endian order = endian::little> struct compressed;
-	template<> struct compressed<signedness::no, endian::little> {
+	template<sign sign = sign::no, endian order = endian::little> struct compressed;
+	template<> struct compressed<sign::no, endian::little> {
 		using data_type = uint64_t;
 		static const size_t block_size = 1 << 7;
 		static const size_t mask = block_size - 1;
@@ -141,9 +150,9 @@ namespace pack {
 			return ret;
 		}
 	};
-	template<endian order> struct compressed<signedness::yes, order> {
+	template<endian order> struct compressed<sign::yes, order> {
 		using data_type = int64_t;
-		using parent = compressed<signedness::no, order>;
+		using parent = compressed<sign::no, order>;
 		static std::string pack(data_type value) noexcept {
 			uint64_t zigzag = (value << 1) ^ (value >> 63);
 			return parent::pack(zigzag);
@@ -205,7 +214,7 @@ namespace pack {
 		}
 	};
 
-	template<typename length_encoder = integral<unsigned, endian::little>> struct varchar {
+	template<typename length_encoder = integral<32, sign::no, endian::little>> struct varchar {
 		using data_type = std::string;
 		static std::string pack(std::string value) {
 			return length_encoder::pack(value.size()) + value;
