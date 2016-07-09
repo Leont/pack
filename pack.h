@@ -105,13 +105,15 @@ namespace pack {
 		}
 	};
 
-	template<typename raw_type = unsigned long long, endian order = endian::little> struct compressed;
-	template<typename raw_type> struct compressed<raw_type, endian::little> {
-		using data_type = raw_type;
+	enum class signedness { yes, no };
+
+	template<signedness sign = signedness::no, endian order = endian::little> struct compressed;
+	template<> struct compressed<signedness::no, endian::little> {
+		using data_type = uint64_t;
 		static const size_t block_size = 1 << 7;
 		static const size_t mask = block_size - 1;
 
-		static std::string pack(raw_type value) noexcept {
+		static std::string pack(data_type value) noexcept {
 			std::string ret;
 			if (value == 0)
 				return std::string("\0", 1);
@@ -121,12 +123,12 @@ namespace pack {
 				value /= block_size;
 			}
 			if (ret.size())
-				*(ret.end() - 1) &= mask;
+				ret.back() &= mask;
 			return ret;
 		}
 		static data_type unpack(std::string::const_iterator& current, const std::string::const_iterator& end) {
 			std::string::const_iterator begin = current;
-			raw_type factor = 1, ret = 0;
+			data_type factor = 1, ret = 0;
 			while (1) {
 				if (current == end)
 					throw exception::out_of_bounds("compressed integer");
@@ -137,6 +139,18 @@ namespace pack {
 					break;
 			}
 			return ret;
+		}
+	};
+	template<endian order> struct compressed<signedness::yes, order> {
+		using data_type = int64_t;
+		using parent = compressed<signedness::no, order>;
+		static std::string pack(data_type value) noexcept {
+			uint64_t zigzag = (value << 1) ^ (value >> 63);
+			return parent::pack(zigzag);
+		}
+		static data_type unpack(std::string::const_iterator& current, const std::string::const_iterator& end) {
+			uint64_t zigzag = parent::unpack(current, end);
+			return (zigzag >> 1) ^ (-(zigzag & 1));
 		}
 	};
 
