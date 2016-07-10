@@ -70,14 +70,14 @@ namespace pack {
 			}
 		};
 
-		template<enum endian order> void byte_copy(char* target, const char* begin, const char* end) noexcept ;
-		template<> void byte_copy<endian::big>(char* target, const char* begin, const char* end) noexcept {
+		template<bool swap> void byte_copy(char* target, const char* begin, const char* end) noexcept ;
+		template<> inline void byte_copy<true>(char* target, const char* begin, const char* end) noexcept {
 			auto current = end;
 			while (--current >= begin)
 				*target++ = *current;
 		}
 
-		template<> void byte_copy<endian::native>(char* target, const char* begin, const char* end) noexcept {
+		template<> inline void byte_copy<false>(char* target, const char* begin, const char* end) noexcept {
 			auto current = begin;
 			while(current < end)
 				*target++ = *current++;
@@ -99,7 +99,7 @@ namespace pack {
 		static constexpr size_t data_size = sizeof(data_type);
 		static std::string pack(data_type value) noexcept {
 			char buffer[data_size];
-			byte_copy<order>(buffer, reinterpret_cast<const char*>(&value), reinterpret_cast<const char*>(&value + 1));
+			byte_copy<order != endian::native>(buffer, reinterpret_cast<const char*>(&value), reinterpret_cast<const char*>(&value + 1));
 			return std::string(buffer, buffer + data_size);
 		}
 		static data_type unpack(std::string::const_iterator& current, const std::string::const_iterator& end) {
@@ -108,7 +108,7 @@ namespace pack {
 				current += data_size;
 
 				data_type temp(0);
-				byte_copy<order>(reinterpret_cast<char*>(&temp), &*begin, &*current);
+				byte_copy<order != endian::native>(reinterpret_cast<char*>(&temp), &*begin, &*current);
 				return temp;
 			}
 			else
