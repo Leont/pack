@@ -3,6 +3,7 @@
 #include <utility>
 #include <limits>
 #include <vector>
+#include <algorithm>
 
 namespace pack {
 	enum class endian { little, big, native = little };
@@ -144,6 +145,41 @@ namespace pack {
 				unsigned char value = static_cast<unsigned char>(*current++);
 				ret += (value & mask) * factor;
 				factor *= block_size;
+				if (!(value & block_size))
+					break;
+			}
+			return ret;
+		}
+	};
+
+	template<size_t max_size> struct compressed<sign::no, endian::big, max_size> {
+		using data_type = typename integer_for<max_size, sign::no>::type;
+		static const size_t block_size = 1 << 7;
+		static const size_t mask = block_size - 1;
+
+		static std::string pack(data_type value) noexcept {
+			std::string ret;
+			if (value == 0)
+				return std::string("\0", 1);
+			while (value) {
+				unsigned char current = value % block_size;
+				ret.push_back(current | block_size);
+				value /= block_size;
+			}
+			std::reverse(ret.begin(), ret.end());
+			if (ret.size())
+				ret.back() &= mask;
+			return ret;
+		}
+		static data_type unpack(std::string::const_iterator& current, const std::string::const_iterator& end) {
+			std::string::const_iterator begin = current;
+			data_type ret = 0;
+			while (1) {
+				if (current == end)
+					throw exception::out_of_bounds("compressed integer");
+				unsigned char value = static_cast<unsigned char>(*current++);
+				ret *= block_size;
+				ret += value & mask;
 				if (!(value & block_size))
 					break;
 			}
