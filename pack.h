@@ -23,10 +23,17 @@ namespace pack {
 			public:
 			explicit invalid_input(const std::string& _message) : base(_message) { }
 		};
-		class out_of_bounds : public base {
+		class invalid_output : public base {
+			using base::base;
+		};
+		class out_of_bounds : public invalid_output {
 			public:
-			explicit out_of_bounds(const std::string& type) : base("Insufficient data in buffer to unpack " + type) {
+			explicit out_of_bounds(const std::string& type) : invalid_output("Insufficient data in buffer to unpack " + type) {
 			}
+		};
+		class overlong : public invalid_output {
+			public:
+			explicit overlong(size_t max) : invalid_output("Can't decode value larger than " + std::to_string(max)) { }
 		};
 	}
 
@@ -122,6 +129,7 @@ namespace pack {
 		using data_type = typename integer_for<max_size, sign::no>::type;
 		static const size_t block_size = 1 << 7;
 		static const size_t mask = block_size - 1;
+		static constexpr data_type max = std::numeric_limits<data_type>::max();
 
 		static std::string pack(data_type value) noexcept {
 			std::string ret;
@@ -143,6 +151,8 @@ namespace pack {
 				if (current == end)
 					throw exception::out_of_bounds("compressed integer");
 				unsigned char value = static_cast<unsigned char>(*current++);
+				if (max / factor < (value & mask))
+					throw exception::overlong(max);
 				ret += (value & mask) * factor;
 				factor *= block_size;
 				if (!(value & block_size))
@@ -156,6 +166,7 @@ namespace pack {
 		using data_type = typename integer_for<max_size, sign::no>::type;
 		static const size_t block_size = 1 << 7;
 		static const size_t mask = block_size - 1;
+		static constexpr data_type max = std::numeric_limits<data_type>::max();
 
 		static std::string pack(data_type value) noexcept {
 			std::string ret;
@@ -178,6 +189,8 @@ namespace pack {
 				if (current == end)
 					throw exception::out_of_bounds("compressed integer");
 				unsigned char value = static_cast<unsigned char>(*current++);
+				if (max / block_size < ret)
+					throw exception::overlong(max);
 				ret *= block_size;
 				ret += value & mask;
 				if (!(value & block_size))
@@ -189,7 +202,7 @@ namespace pack {
 
 	template<endian order, size_t max_size> struct compressed<sign::yes, order, max_size> {
 		using data_type = typename integer_for<max_size, sign::yes>::type;
-		using parent = compressed<sign::no, order>;
+		using parent = compressed<sign::no, order, max_size>;
 		static std::string pack(data_type value) noexcept {
 			data_type zigzag = (value << 1) ^ (value >> (max_size - 1));
 			return parent::pack(zigzag);
