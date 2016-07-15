@@ -116,9 +116,9 @@ namespace pack {
 		}
 	};
 
-	template<sign sign = sign::no, endian order = endian::little> struct compressed;
-	template<> struct compressed<sign::no, endian::little> {
-		using data_type = uint64_t;
+	template<sign sign = sign::no, endian order = endian::little, size_t max_size = 64> struct compressed;
+	template<size_t max_size> struct compressed<sign::no, endian::little, max_size> {
+		using data_type = typename integer_for<max_size, sign::no>::type;
 		static const size_t block_size = 1 << 7;
 		static const size_t mask = block_size - 1;
 
@@ -150,15 +150,16 @@ namespace pack {
 			return ret;
 		}
 	};
-	template<endian order> struct compressed<sign::yes, order> {
-		using data_type = int64_t;
+
+	template<endian order, size_t max_size> struct compressed<sign::yes, order, max_size> {
+		using data_type = typename integer_for<max_size, sign::yes>::type;
 		using parent = compressed<sign::no, order>;
 		static std::string pack(data_type value) noexcept {
-			uint64_t zigzag = (value << 1) ^ (value >> 63);
+			data_type zigzag = (value << 1) ^ (value >> (max_size - 1));
 			return parent::pack(zigzag);
 		}
 		static data_type unpack(std::string::const_iterator& current, const std::string::const_iterator& end) {
-			uint64_t zigzag = parent::unpack(current, end);
+			data_type zigzag = parent::unpack(current, end);
 			return (zigzag >> 1) ^ (-(zigzag & 1));
 		}
 	};
