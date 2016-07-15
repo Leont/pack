@@ -11,7 +11,7 @@ namespace pack {
 
 	namespace exception {
 		class base: public std::exception {
-			std::string message;
+			const std::string message;
 			protected:
 			explicit base(const std::string& _message) : message(_message) { }
 			public:
@@ -127,16 +127,16 @@ namespace pack {
 	template<sign sign = sign::no, endian order = endian::little, size_t max_size = 64> struct compressed;
 	template<size_t max_size> struct compressed<sign::no, endian::little, max_size> {
 		using data_type = typename integer_for<max_size, sign::no>::type;
-		static const size_t block_size = 1 << 7;
-		static const size_t mask = block_size - 1;
+		static constexpr size_t block_size = 1 << 7;
+		static constexpr size_t mask = block_size - 1;
 		static constexpr data_type max = std::numeric_limits<data_type>::max();
 
 		static std::string pack(data_type value) noexcept {
-			std::string ret;
 			if (value == 0)
 				return std::string("\0", 1);
+			std::string ret;
 			while (value) {
-				unsigned char current = value % block_size;
+				const unsigned char current = value % block_size;
 				ret.push_back(current | block_size);
 				value /= block_size;
 			}
@@ -145,12 +145,11 @@ namespace pack {
 			return ret;
 		}
 		static data_type unpack(std::string::const_iterator& current, const std::string::const_iterator& end) {
-			std::string::const_iterator begin = current;
 			data_type factor = 1, ret = 0;
 			while (1) {
 				if (current == end)
 					throw exception::out_of_bounds("compressed integer");
-				unsigned char value = static_cast<unsigned char>(*current++);
+				const unsigned char value = static_cast<unsigned char>(*current++);
 				if (max / factor < (value & mask))
 					throw exception::overlong(max);
 				ret += (value & mask) * factor;
@@ -164,16 +163,16 @@ namespace pack {
 
 	template<size_t max_size> struct compressed<sign::no, endian::big, max_size> {
 		using data_type = typename integer_for<max_size, sign::no>::type;
-		static const size_t block_size = 1 << 7;
-		static const size_t mask = block_size - 1;
+		static constexpr size_t block_size = 1 << 7;
+		static constexpr size_t mask = block_size - 1;
 		static constexpr data_type max = std::numeric_limits<data_type>::max();
 
 		static std::string pack(data_type value) noexcept {
-			std::string ret;
 			if (value == 0)
 				return std::string("\0", 1);
+			std::string ret;
 			while (value) {
-				unsigned char current = value % block_size;
+				const unsigned char current = value % block_size;
 				ret.push_back(current | block_size);
 				value /= block_size;
 			}
@@ -183,12 +182,11 @@ namespace pack {
 			return ret;
 		}
 		static data_type unpack(std::string::const_iterator& current, const std::string::const_iterator& end) {
-			std::string::const_iterator begin = current;
 			data_type ret = 0;
 			while (1) {
 				if (current == end)
 					throw exception::out_of_bounds("compressed integer");
-				unsigned char value = static_cast<unsigned char>(*current++);
+				const unsigned char value = static_cast<unsigned char>(*current++);
 				if (max / block_size < ret)
 					throw exception::overlong(max);
 				ret *= block_size;
@@ -204,11 +202,11 @@ namespace pack {
 		using data_type = typename integer_for<max_size, sign::yes>::type;
 		using parent = compressed<sign::no, order, max_size>;
 		static std::string pack(data_type value) noexcept {
-			data_type zigzag = (value << 1) ^ (value >> (max_size - 1));
+			const data_type zigzag = (value << 1) ^ (value >> (max_size - 1));
 			return parent::pack(zigzag);
 		}
 		static data_type unpack(std::string::const_iterator& current, const std::string::const_iterator& end) {
-			data_type zigzag = parent::unpack(current, end);
+			const data_type zigzag = parent::unpack(current, end);
 			return (zigzag >> 1) ^ (-(zigzag & 1));
 		}
 	};
@@ -235,7 +233,7 @@ namespace pack {
 					return value.append(length - value.size(), character);
 			}
 			static std::string strip_padding(std::string value) noexcept {
-				size_t end = value.find_last_not_of(character);
+				const size_t end = value.find_last_not_of(character);
 				if (end == std::string::npos)
 					return std::string();
 				else if (value.begin() + end == value.end())
@@ -255,7 +253,7 @@ namespace pack {
 		}
 		static std::string unpack(std::string::const_iterator& current, const std::string::const_iterator& end) {
 			if (current + length <= end) {
-				auto begin = current;
+				const auto begin = current;
 				current += length;
 				return pad::strip_padding(std::string(begin, current));
 			}
@@ -270,9 +268,9 @@ namespace pack {
 			return length_encoder::pack(value.size()) + value;
 		}
 		static std::string unpack(std::string::const_iterator& current, const std::string::const_iterator& end) {
-			size_t length = length_encoder::unpack(current, end);
+			const size_t length = length_encoder::unpack(current, end);
 			if (unsigned(end - current) >= length) {
-				auto begin = current;
+				const auto begin = current;
 				current += length;
 				return std::string(begin, current);
 			}
@@ -307,8 +305,7 @@ namespace pack {
 			return packer::pack(arguments...);
 		}
 		static std::tuple<typename elements::data_type...> unpack(const std::string& packed) {
-			std::string::const_iterator begin = packed.begin();
-			return packer::unpack(begin, packed.end());
+			return packer::unpack(packed.begin(), packed.end());
 		}
 	};
 }
