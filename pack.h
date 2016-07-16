@@ -201,12 +201,13 @@ namespace pack {
 	template<endian order, size_t max_size> struct compressed<sign::yes, order, max_size> {
 		using data_type = typename integer_for<max_size, sign::yes>::type;
 		using parent = compressed<sign::no, order, max_size>;
+		using unsigned_type = typename parent::data_type;
 		static std::string pack(data_type value) noexcept {
-			const data_type zigzag = (value << 1) ^ (value >> (max_size - 1));
+			const unsigned_type zigzag = (value << 1) ^ (value >> (max_size - 1));
 			return parent::pack(zigzag);
 		}
 		static data_type unpack(std::string::const_iterator& current, const std::string::const_iterator& end) {
-			const data_type zigzag = parent::unpack(current, end);
+			const unsigned_type zigzag = parent::unpack(current, end);
 			return (zigzag >> 1) ^ (-(zigzag & 1));
 		}
 	};
