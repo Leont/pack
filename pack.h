@@ -13,7 +13,7 @@
 
 namespace pack {
 	enum class endian { little, big, native = NATIVE_ENDIAN };
-	enum class sign { yes = false, no = true };
+	enum class sign { no, yes };
 
 	namespace exception {
 		class base: public std::exception {
