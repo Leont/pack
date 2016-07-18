@@ -5,8 +5,14 @@
 #include <vector>
 #include <algorithm>
 
+#if defined(__BIG_ENDIAN__) || (defined(__BYTE_ORDER__) && (__BYTE_ORDER__ == __ORDER_BIG_ENDIAN__))
+#define NATIVE_ENDIAN big
+#else
+#define NATIVE_ENDIAN little
+#endif
+
 namespace pack {
-	enum class endian { little, big, native = little };
+	enum class endian { little, big, native = NATIVE_ENDIAN };
 	enum class sign { yes = false, no = true };
 
 	namespace exception {
