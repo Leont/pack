@@ -48,16 +48,16 @@ namespace pack {
 	};
 
 	namespace {
-		template<typename head_type, typename... tail_types> struct follow_up {
+		template<typename head_type, typename... tail_types> struct packer {
 			template<typename head_argument, typename... tail_arguments> static std::string pack(const head_argument& data, const tail_arguments&... arguments) {
-				return head_type::pack(std::move(data)) + follow_up<tail_types...>::pack(arguments...);
+				return head_type::pack(std::move(data)) + packer<tail_types...>::pack(arguments...);
 			}
 			static std::tuple<typename head_type::data_type, typename tail_types::data_type...> unpack(std::string::const_iterator current, const std::string::const_iterator& end) {
 				auto first = std::make_tuple(head_type::unpack(current, end));
-				return tuple_cat(std::move(first), follow_up<tail_types...>::unpack(current, end));
+				return tuple_cat(std::move(first), packer<tail_types...>::unpack(current, end));
 			}
 		};
-		template<typename head_type> struct follow_up<head_type> {
+		template<typename head_type> struct packer<head_type> {
 			template<typename head_argument> static std::string pack(const head_argument& data) {
 				return head_type::pack(data);
 			}
@@ -66,16 +66,16 @@ namespace pack {
 			}
 		};
 
-		template<typename... tail_types> struct follow_up<current_iterator, tail_types...> {
+		template<typename... tail_types> struct packer<current_iterator, tail_types...> {
 			template<typename... tail_arguments> static std::string pack(const tail_arguments&... arguments) {
-				return follow_up<tail_types...>::pack(arguments...);
+				return packer<tail_types...>::pack(arguments...);
 			}
 			static std::tuple<std::string::const_iterator, typename tail_types::data_type...> unpack(std::string::const_iterator current, const std::string::const_iterator& end) {
 				auto first = std::make_tuple(current);
-				return tuple_cat(std::move(first), follow_up<tail_types...>::unpack(current, end));
+				return tuple_cat(std::move(first), packer<tail_types...>::unpack(current, end));
 			}
 		};
-		template<> struct follow_up<current_iterator> {
+		template<> struct packer<current_iterator> {
 			static std::string pack() {
 				return std::string();
 			}
@@ -305,14 +305,14 @@ namespace pack {
 	};
 
 	template<typename... elements> class format {
-		typedef follow_up<elements...> packer;
+		typedef packer<elements...> my_packer;
 
 		public:
 		template<typename... argument_types> static std::string pack(const argument_types&... arguments) {
-			return packer::pack(arguments...);
+			return my_packer::pack(arguments...);
 		}
 		static std::tuple<typename elements::data_type...> unpack(const std::string& packed) {
-			return packer::unpack(packed.begin(), packed.end());
+			return my_packer::unpack(packed.begin(), packed.end());
 		}
 	};
 }
