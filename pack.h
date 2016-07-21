@@ -37,10 +37,10 @@ namespace pack {
 			explicit out_of_bounds(const std::string& type) : invalid_output("Insufficient data in buffer to unpack " + type) {
 			}
 		};
-		class overlong : public invalid_output {
+		template<typename T> class overlong : public invalid_output {
+			using limits = std::numeric_limits<T>;
 			public:
-			explicit overlong(size_t max) : overlong(0, max) { }
-			overlong(ssize_t min, size_t max) : invalid_output("Can't decode value outside range " + std::to_string(min) + "-"  + std::to_string(max)) { }
+			overlong() : invalid_output("Can't decode value outside range " + std::to_string(limits::min()) + " - "  + std::to_string(limits::max())) { }
 		};
 	}
 
@@ -158,7 +158,7 @@ namespace pack {
 					throw exception::out_of_bounds("compressed integer");
 				const unsigned char value = static_cast<unsigned char>(*current++);
 				if (max / factor < (value & mask))
-					throw exception::overlong(max);
+					throw exception::overlong<data_type>();
 				ret += (value & mask) * factor;
 				factor *= block_size;
 				if (!(value & block_size))
@@ -195,7 +195,7 @@ namespace pack {
 					throw exception::out_of_bounds("compressed integer");
 				const unsigned char value = static_cast<unsigned char>(*current++);
 				if (max / block_size < ret)
-					throw exception::overlong(max);
+					throw exception::overlong<data_type>();
 				ret *= block_size;
 				ret += value & mask;
 				if (!(value & block_size))
@@ -209,7 +209,6 @@ namespace pack {
 		using data_type = typename integer_for<max_size, sign::yes>::type;
 		using parent = compressed<sign::no, order, max_size>;
 		using unsigned_type = typename parent::data_type;
-		using limits = typename std::numeric_limits<data_type>;
 		static std::string pack(data_type value) noexcept {
 			const unsigned_type zigzag = (value << 1) ^ (value >> (max_size - 1));
 			return parent::pack(zigzag);
@@ -219,8 +218,8 @@ namespace pack {
 				const unsigned_type zigzag = parent::unpack(current, end);
 				return (zigzag >> 1) ^ (-(zigzag & 1));
 			}
-			catch (const exception::overlong& e) {
-				throw exception::overlong(limits::min(), limits::max());
+			catch (const exception::overlong<unsigned_type>& e) {
+				throw exception::overlong<data_type>();
 			}
 		}
 	};
