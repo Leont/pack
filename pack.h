@@ -39,7 +39,8 @@ namespace pack {
 		};
 		class overlong : public invalid_output {
 			public:
-			explicit overlong(size_t max) : invalid_output("Can't decode value larger than " + std::to_string(max)) { }
+			explicit overlong(size_t max) : overlong(0, max) { }
+			overlong(ssize_t min, size_t max) : invalid_output("Can't decode value outside range " + std::to_string(min) + "-"  + std::to_string(max)) { }
 		};
 	}
 
@@ -208,13 +209,19 @@ namespace pack {
 		using data_type = typename integer_for<max_size, sign::yes>::type;
 		using parent = compressed<sign::no, order, max_size>;
 		using unsigned_type = typename parent::data_type;
+		using limits = typename std::numeric_limits<data_type>;
 		static std::string pack(data_type value) noexcept {
 			const unsigned_type zigzag = (value << 1) ^ (value >> (max_size - 1));
 			return parent::pack(zigzag);
 		}
 		static data_type unpack(std::string::const_iterator& current, const std::string::const_iterator& end) {
-			const unsigned_type zigzag = parent::unpack(current, end);
-			return (zigzag >> 1) ^ (-(zigzag & 1));
+			try {
+				const unsigned_type zigzag = parent::unpack(current, end);
+				return (zigzag >> 1) ^ (-(zigzag & 1));
+			}
+			catch (const exception::overlong& e) {
+				throw exception::overlong(limits::min(), limits::max());
+			}
 		}
 	};
 
