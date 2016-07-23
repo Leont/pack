@@ -85,17 +85,17 @@ namespace pack {
 			}
 		};
 
-		template<bool swap> void byte_copy(char* target, const char* begin, const char* end) noexcept ;
-		template<> inline void byte_copy<true>(char* target, const char* begin, const char* end) noexcept {
-			auto current = end;
-			while (--current >= begin)
-				*target++ = *current;
+		template<typename T> union converter {
+			T intval;
+			std::array<char, sizeof(T)> charval;
+		};
+		template<bool swap> inline void swap_maybe(char*, char*) noexcept { }
+		template<> inline void swap_maybe<true>(char* begin, char* end) noexcept {
+			std::reverse(begin, end);
 		}
-
-		template<> inline void byte_copy<false>(char* target, const char* begin, const char* end) noexcept {
-			auto current = begin;
-			while(current < end)
-				*target++ = *current++;
+		template<endian endianness, typename T> inline converter<T> value_copy(converter<T> value) noexcept {
+			swap_maybe<endianness != endian::native>(value.charval.begin(), value.charval.end());
+			return value;
 		}
 
 		template<size_t size, sign signedness> struct integer_for;
@@ -111,20 +111,17 @@ namespace pack {
 
 	template<size_t size, sign sign, endian order = endian::native> struct integral {
 		using data_type = typename integer_for<size, sign>::type;
-		static constexpr size_t data_size = sizeof(data_type);
 		static std::string pack(data_type value) noexcept {
-			char buffer[data_size];
-			byte_copy<order != endian::native>(buffer, reinterpret_cast<const char*>(&value), reinterpret_cast<const char*>(&value + 1));
-			return std::string(buffer, buffer + data_size);
+			converter<data_type> newval = value_copy<order>(converter<data_type>{value});
+			return std::string(newval.charval.begin(), newval.charval.end());
 		}
 		static data_type unpack(std::string::const_iterator& current, const std::string::const_iterator& end) {
-			if (current + data_size <= end) {
-				auto begin = current;
-				current += data_size;
-
-				data_type temp(0);
-				byte_copy<order != endian::native>(reinterpret_cast<char*>(&temp), &*begin, &*current);
-				return temp;
+			std::string::const_iterator expected = current + sizeof(data_type);
+			if (expected <= end) {
+				converter<data_type> temp;
+				std::copy(current, expected, temp.charval.begin());
+				current = expected;
+				return value_copy<order, data_type>(temp).intval;
 			}
 			else
 				throw exception::out_of_bounds("integer");
