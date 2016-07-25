@@ -144,8 +144,7 @@ namespace pack {
 				ret.push_back(current | block_size);
 				value /= block_size;
 			}
-			if (ret.size())
-				ret.back() &= mask;
+			ret.back() &= mask;
 			return ret;
 		}
 		static data_type unpack(std::string::const_iterator& current, const std::string::const_iterator& end) {
@@ -181,8 +180,7 @@ namespace pack {
 				value /= block_size;
 			}
 			std::reverse(ret.begin(), ret.end());
-			if (ret.size())
-				ret.back() &= mask;
+			ret.back() &= mask;
 			return ret;
 		}
 		static data_type unpack(std::string::const_iterator& current, const std::string::const_iterator& end) {
