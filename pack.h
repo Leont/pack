@@ -37,6 +37,10 @@ namespace pack {
 			explicit out_of_bounds(const std::string& type) : invalid_output("Insufficient data in buffer to unpack " + type) {
 			}
 		};
+		class incomplete_parse : public base {
+			public:
+			explicit incomplete_parse(size_t parsed, size_t full) : base("Parsed " + std::to_string(parsed) + " out of " + std::to_string(full) + " bytes") { }
+		};
 		template<typename T> class overlong : public invalid_output {
 			using limits = std::numeric_limits<T>;
 			public:
@@ -44,16 +48,12 @@ namespace pack {
 		};
 	}
 
-	struct current_iterator {
-		using data_type = std::string::const_iterator;
-	};
-
 	namespace {
 		template<typename head_type, typename... tail_types> struct packer {
 			template<typename head_argument, typename... tail_arguments> static std::string pack(const head_argument& data, const tail_arguments&... arguments) {
 				return head_type::pack(std::move(data)) + packer<tail_types...>::pack(arguments...);
 			}
-			static std::tuple<typename head_type::data_type, typename tail_types::data_type...> unpack(std::string::const_iterator current, const std::string::const_iterator& end) {
+			static std::tuple<typename head_type::data_type, typename tail_types::data_type...> unpack(std::string::const_iterator& current, const std::string::const_iterator& end) {
 				auto first = std::make_tuple(head_type::unpack(current, end));
 				return tuple_cat(std::move(first), packer<tail_types...>::unpack(current, end));
 			}
@@ -62,26 +62,8 @@ namespace pack {
 			template<typename head_argument> static std::string pack(const head_argument& data) {
 				return head_type::pack(data);
 			}
-			static std::tuple<typename head_type::data_type> unpack(std::string::const_iterator current, const std::string::const_iterator& end) {
+			static std::tuple<typename head_type::data_type> unpack(std::string::const_iterator& current, const std::string::const_iterator& end) {
 				return std::make_tuple(head_type::unpack(current, end));
-			}
-		};
-
-		template<typename... tail_types> struct packer<current_iterator, tail_types...> {
-			template<typename... tail_arguments> static std::string pack(const tail_arguments&... arguments) {
-				return packer<tail_types...>::pack(arguments...);
-			}
-			static std::tuple<std::string::const_iterator, typename tail_types::data_type...> unpack(std::string::const_iterator current, const std::string::const_iterator& end) {
-				auto first = std::make_tuple(current);
-				return tuple_cat(std::move(first), packer<tail_types...>::unpack(current, end));
-			}
-		};
-		template<> struct packer<current_iterator> {
-			static std::string pack() {
-				return std::string();
-			}
-			static std::tuple<std::string::const_iterator> unpack(std::string::const_iterator current, const std::string::const_iterator&) {
-				return std::make_tuple(current);
 			}
 		};
 
@@ -313,7 +295,15 @@ namespace pack {
 			return my_packer::pack(arguments...);
 		}
 		static std::tuple<typename elements::data_type...> unpack(const std::string& packed) {
-			return my_packer::unpack(packed.begin(), packed.end());
+			auto current = packed.begin();
+			auto ret = my_packer::unpack(current, packed.end());
+			if (current != packed.end())
+				throw exception::incomplete_parse(current - packed.begin(), packed.size());
+			return ret;
+		}
+		static std::tuple<typename elements::data_type...> unpack(const std::string& packed, std::string::const_iterator& end) {
+			end = packed.begin();
+			return my_packer::unpack(end, packed.end());
 		}
 	};
 }
