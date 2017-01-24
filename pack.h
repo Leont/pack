@@ -116,7 +116,7 @@ namespace pack {
 			return std::string(newval.charval.begin(), newval.charval.end());
 		}
 		static data_type unpack(std::string::const_iterator& current, const std::string::const_iterator& end) {
-			std::string::const_iterator expected = current + sizeof(data_type);
+			const std::string::const_iterator expected = current + sizeof(data_type);
 			if (expected <= end) {
 				converter<data_type> temp;
 				std::copy(current, expected, temp.charval.begin());
@@ -297,9 +297,9 @@ namespace pack {
 			return ret;
 		}
 		static std::vector<element_type> unpack(std::string::const_iterator& current, const std::string::const_iterator& end) {
-			size_t length = length_encoder::unpack(current, end);
+			const size_t length = length_encoder::unpack(current, end);
 			std::vector<element_type> pieces;
-			while (length--)
+			for (size_t count = 0; count < length; ++count)
 				pieces.push_back(element_encoder::unpack(current, end));
 			return pieces;
 		}
