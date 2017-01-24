@@ -109,7 +109,7 @@ namespace pack {
 		template<> struct integer_for<8,  sign::yes> { using type =  int8_t ; };
 	}
 
-	template<size_t size, sign sign, endian order = endian::native> struct integral {
+	template<size_t size, sign sign = sign::no, endian order = endian::big> struct integral {
 		using data_type = typename integer_for<size, sign>::type;
 		static std::string pack(data_type value) noexcept {
 			converter<data_type> newval = value_copy<order>(converter<data_type>{value});
