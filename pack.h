@@ -213,7 +213,7 @@ namespace pack {
 			}
 		};
 
-		template<char character> struct byte_padder {
+		template<char character> struct byte {
 			static std::string add_padding(std::string value, size_t length) {
 				if (value.length() == length)
 					return value;
@@ -232,8 +232,8 @@ namespace pack {
 					return std::string(value.begin(), value.begin() + end + 1);
 			}
 		};
-		using null = byte_padder<'\0'>;
-		using space = byte_padder<' '>;
+		using null = byte<'\0'>;
+		using space = byte<' '>;
 	}
 
 	template<int length, typename pad = padding::none> struct fixed_string {
