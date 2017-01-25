@@ -49,24 +49,6 @@ namespace pack {
 	}
 
 	namespace {
-		template<typename head_type, typename... tail_types> struct packer {
-			template<typename head_argument, typename... tail_arguments> static std::string pack(const head_argument& data, const tail_arguments&... arguments) {
-				return head_type::pack(std::move(data)) + packer<tail_types...>::pack(arguments...);
-			}
-			static std::tuple<typename head_type::data_type, typename tail_types::data_type...> unpack(std::string::const_iterator& current, const std::string::const_iterator& end) {
-				auto first = std::make_tuple(head_type::unpack(current, end));
-				return tuple_cat(std::move(first), packer<tail_types...>::unpack(current, end));
-			}
-		};
-		template<typename head_type> struct packer<head_type> {
-			template<typename head_argument> static std::string pack(const head_argument& data) {
-				return head_type::pack(data);
-			}
-			static std::tuple<typename head_type::data_type> unpack(std::string::const_iterator& current, const std::string::const_iterator& end) {
-				return std::make_tuple(head_type::unpack(current, end));
-			}
-		};
-
 		template<typename T> union converter {
 			T intval;
 			std::array<char, sizeof(T)> charval;
@@ -286,6 +268,26 @@ namespace pack {
 			return pieces;
 		}
 	};
+
+	namespace {
+		template<typename head_type, typename... tail_types> struct packer {
+			template<typename head_argument, typename... tail_arguments> static std::string pack(const head_argument& data, const tail_arguments&... arguments) {
+				return head_type::pack(std::move(data)) + packer<tail_types...>::pack(arguments...);
+			}
+			static std::tuple<typename head_type::data_type, typename tail_types::data_type...> unpack(std::string::const_iterator& current, const std::string::const_iterator& end) {
+				auto first = std::make_tuple(head_type::unpack(current, end));
+				return tuple_cat(std::move(first), packer<tail_types...>::unpack(current, end));
+			}
+		};
+		template<typename head_type> struct packer<head_type> {
+			template<typename head_argument> static std::string pack(const head_argument& data) {
+				return head_type::pack(data);
+			}
+			static std::tuple<typename head_type::data_type> unpack(std::string::const_iterator& current, const std::string::const_iterator& end) {
+				return std::make_tuple(head_type::unpack(current, end));
+			}
+		};
+	}
 
 	template<typename... elements> class format {
 		typedef packer<elements...> my_packer;
