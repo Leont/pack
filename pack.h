@@ -185,7 +185,7 @@ namespace pack {
 
 	namespace padding {
 		struct none {
-			static std::string add_padding(const std::string& value, size_t length) {
+			static std::string add_padding(const std::string& value, size_t length) noexcept(false) {
 				if (value.size() != length)
 					throw exception::invalid_input("Packed string should be of length " + std::to_string(length));
 				return value;
@@ -196,7 +196,7 @@ namespace pack {
 		};
 
 		template<char character> struct byte {
-			static std::string add_padding(std::string value, size_t length) {
+			static std::string add_padding(std::string value, size_t length) noexcept(false) {
 				if (value.length() == length)
 					return value;
 				else if (value.size() > length)
@@ -220,10 +220,10 @@ namespace pack {
 
 	template<int length, typename pad = padding::none> struct fixed_string {
 		using data_type = std::string;
-		static std::string pack(std::string value) {
+		static std::string pack(std::string value) noexcept(false) {
 			return pad::add_padding(value, length);
 		}
-		static std::string unpack(std::string::const_iterator& current, const std::string::const_iterator& end) {
+		static std::string unpack(std::string::const_iterator& current, const std::string::const_iterator& end) noexcept(false) {
 			if (current + length <= end) {
 				const auto begin = current;
 				current += length;
@@ -236,10 +236,10 @@ namespace pack {
 
 	template<typename length_encoder = integral<32, sign::no, endian::little>> struct varchar {
 		using data_type = std::string;
-		static std::string pack(std::string value) {
+		static std::string pack(std::string value) noexcept(noexcept(length_encoder::pack(value.size()))) {
 			return length_encoder::pack(value.size()) + value;
 		}
-		static std::string unpack(std::string::const_iterator& current, const std::string::const_iterator& end) {
+		static std::string unpack(std::string::const_iterator& current, const std::string::const_iterator& end) noexcept(false) {
 			const size_t length = length_encoder::unpack(current, end);
 			if (unsigned(end - current) >= length) {
 				const auto begin = current;
@@ -254,13 +254,13 @@ namespace pack {
 	template<typename element_encoder, typename length_encoder> struct sequence {
 		using element_type = typename element_encoder::data_type;
 		using data_type = std::vector<element_type>;
-		template<typename argument_type> static std::string pack(const std::vector<argument_type>& elements) {
+		template<typename argument_type> static std::string pack(const std::vector<argument_type>& elements) noexcept(noexcept(length_encoder::pack(elements.size()))) {
 			std::string ret = length_encoder::pack(elements.size());
 			for (const auto& elem: elements)
 				ret += element_encoder::pack(elem);
 			return ret;
 		}
-		static std::vector<element_type> unpack(std::string::const_iterator& current, const std::string::const_iterator& end) {
+		static std::vector<element_type> unpack(std::string::const_iterator& current, const std::string::const_iterator& end) noexcept(false) {
 			const size_t length = length_encoder::unpack(current, end);
 			std::vector<element_type> pieces;
 			for (size_t count = 0; count < length; ++count)
@@ -274,7 +274,7 @@ namespace pack {
 			template<typename head_argument, typename... tail_arguments> static std::string pack(const head_argument& data, const tail_arguments&... arguments) {
 				return head_type::pack(std::move(data)) + packer<tail_types...>::pack(arguments...);
 			}
-			static std::tuple<typename head_type::data_type, typename tail_types::data_type...> unpack(std::string::const_iterator& current, const std::string::const_iterator& end) {
+			static std::tuple<typename head_type::data_type, typename tail_types::data_type...> unpack(std::string::const_iterator& current, const std::string::const_iterator& end) noexcept(false) {
 				auto first = std::make_tuple(head_type::unpack(current, end));
 				return tuple_cat(std::move(first), packer<tail_types...>::unpack(current, end));
 			}
@@ -283,7 +283,7 @@ namespace pack {
 			template<typename head_argument> static std::string pack(const head_argument& data) {
 				return head_type::pack(data);
 			}
-			static std::tuple<typename head_type::data_type> unpack(std::string::const_iterator& current, const std::string::const_iterator& end) {
+			static std::tuple<typename head_type::data_type> unpack(std::string::const_iterator& current, const std::string::const_iterator& end) noexcept(false) {
 				return std::make_tuple(head_type::unpack(current, end));
 			}
 		};
@@ -296,14 +296,14 @@ namespace pack {
 		template<typename... argument_types> static std::string pack(const argument_types&... arguments) {
 			return my_packer::pack(arguments...);
 		}
-		static std::tuple<typename elements::data_type...> unpack(const std::string& packed) {
+		static std::tuple<typename elements::data_type...> unpack(const std::string& packed) noexcept(false) {
 			auto current = packed.begin();
 			auto ret = my_packer::unpack(current, packed.end());
 			if (current != packed.end())
 				throw exception::incomplete_parse(current - packed.begin(), packed.size());
 			return ret;
 		}
-		static std::tuple<typename elements::data_type...> unpack(const std::string& packed, std::string::const_iterator& end) {
+		static std::tuple<typename elements::data_type...> unpack(const std::string& packed, std::string::const_iterator& end) noexcept(false) {
 			end = packed.begin();
 			return my_packer::unpack(end, packed.end());
 		}
