@@ -117,14 +117,13 @@ namespace pack {
 				if (current == end)
 					throw exception::out_of_bounds("compressed integer");
 				const unsigned char value = static_cast<unsigned char>(*current++);
-				if (max / factor < (value & mask))
+				if ((value & mask) > max / factor)
 					throw exception::overlong<data_type>();
 				ret += (value & mask) * factor;
 				factor *= block_size;
 				if (!(value & block_size))
-					break;
+					return ret;
 			}
-			return ret;
 		}
 	};
 
@@ -152,15 +151,14 @@ namespace pack {
 			while (1) {
 				if (current == end)
 					throw exception::out_of_bounds("compressed integer");
-				const unsigned char value = static_cast<unsigned char>(*current++);
-				if (max / block_size < ret)
+				if (ret > max / block_size)
 					throw exception::overlong<data_type>();
+				const unsigned char value = static_cast<unsigned char>(*current++);
 				ret *= block_size;
 				ret += value & mask;
 				if (!(value & block_size))
-					break;
+					return ret;
 			}
-			return ret;
 		}
 	};
 
