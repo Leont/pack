@@ -234,7 +234,7 @@ namespace pack {
 		}
 	};
 
-	template<typename length_encoder = integral<32, sign::no, endian::little>> struct varchar {
+	template<typename length_encoder> struct varchar {
 		using data_type = std::string;
 		static std::string pack(std::string value) noexcept(noexcept(length_encoder::pack(value.size()))) {
 			return length_encoder::pack(value.size()) + value;
