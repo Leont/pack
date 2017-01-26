@@ -62,19 +62,21 @@ namespace pack {
 			return value;
 		}
 
-		template<size_t size, sign signedness> struct integer_for;
-		template<> struct integer_for<64, sign::no > { using type = uint64_t; };
-		template<> struct integer_for<64, sign::yes> { using type =  int64_t; };
-		template<> struct integer_for<32, sign::no > { using type = uint32_t; };
-		template<> struct integer_for<32, sign::yes> { using type =  int32_t; };
-		template<> struct integer_for<16, sign::no > { using type = uint16_t; };
-		template<> struct integer_for<16, sign::yes> { using type =  int16_t; };
-		template<> struct integer_for<8,  sign::no > { using type = uint8_t ; };
-		template<> struct integer_for<8,  sign::yes> { using type =  int8_t ; };
+		template<size_t size, sign signedness> struct integer_impl;
+		template<> struct integer_impl<64, sign::no > { using type = uint64_t; };
+		template<> struct integer_impl<64, sign::yes> { using type =  int64_t; };
+		template<> struct integer_impl<32, sign::no > { using type = uint32_t; };
+		template<> struct integer_impl<32, sign::yes> { using type =  int32_t; };
+		template<> struct integer_impl<16, sign::no > { using type = uint16_t; };
+		template<> struct integer_impl<16, sign::yes> { using type =  int16_t; };
+		template<> struct integer_impl<8,  sign::no > { using type = uint8_t ; };
+		template<> struct integer_impl<8,  sign::yes> { using type =  int8_t ; };
 	}
 
+	template<size_t size, sign signedness> using integer_for = typename integer_impl<size, signedness>::type;
+
 	template<size_t size, sign sign = sign::no, endian order = endian::big> struct integral {
-		using data_type = typename integer_for<size, sign>::type;
+		using data_type = integer_for<size, sign>;
 		static std::string pack(data_type value) noexcept {
 			converter<data_type> newval = value_copy<order>(converter<data_type>{value});
 			return std::string(newval.charval.begin(), newval.charval.end());
@@ -94,7 +96,7 @@ namespace pack {
 
 	template<sign sign = sign::no, endian order = endian::little, size_t max_size = 64> struct compressed;
 	template<size_t max_size> struct compressed<sign::no, endian::little, max_size> {
-		using data_type = typename integer_for<max_size, sign::no>::type;
+		using data_type = integer_for<max_size, sign::no>;
 		static constexpr size_t block_size = 1 << 7;
 		static constexpr size_t mask = block_size - 1;
 		static constexpr data_type max = std::numeric_limits<data_type>::max();
@@ -128,7 +130,7 @@ namespace pack {
 	};
 
 	template<size_t max_size> struct compressed<sign::no, endian::big, max_size> {
-		using data_type = typename integer_for<max_size, sign::no>::type;
+		using data_type = integer_for<max_size, sign::no>;
 		static constexpr size_t block_size = 1 << 7;
 		static constexpr size_t mask = block_size - 1;
 		static constexpr data_type max = std::numeric_limits<data_type>::max();
@@ -163,7 +165,7 @@ namespace pack {
 	};
 
 	template<endian order, size_t max_size> struct compressed<sign::yes, order, max_size> {
-		using data_type = typename integer_for<max_size, sign::yes>::type;
+		using data_type = integer_for<max_size, sign::yes>;
 		using parent = compressed<sign::no, order, max_size>;
 		using unsigned_type = typename parent::data_type;
 		static std::string pack(data_type value) noexcept {
