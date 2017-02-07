@@ -4,6 +4,7 @@
 #include <limits>
 #include <vector>
 #include <algorithm>
+#include <type_traits>
 
 #if defined(__BIG_ENDIAN__) || (defined(__BYTE_ORDER__) && (__BYTE_ORDER__ == __ORDER_BIG_ENDIAN__))
 #define NATIVE_ENDIAN big
@@ -12,9 +13,8 @@
 #endif
 
 namespace pack {
-	enum class endian { little, big, native = NATIVE_ENDIAN };
-	enum class sign { no, yes };
-
+	// The exception hierarchy. Some pack functions can throw an exception, as
+	// well as all unpack functions. Where possible this is marked using noexcept.
 	namespace exception {
 		class base: public std::exception {
 			const std::string message;
@@ -48,7 +48,12 @@ namespace pack {
 		};
 	}
 
+	// These enums are used (often together with a size) to describe integers.
+	enum class sign { no, yes };
+	enum class endian { little, big, native = NATIVE_ENDIAN };
+
 	namespace {
+		// These are helpers for endianness conversion
 		template<typename T> union converter {
 			T intval;
 			std::array<char, sizeof(T)> charval;
@@ -62,6 +67,7 @@ namespace pack {
 			return value;
 		}
 
+		// This defines integer types for various sized and signness combinations.
 		template<size_t size, sign signedness> struct integer_impl;
 		template<> struct integer_impl<64, sign::no > { using type = uint64_t; };
 		template<> struct integer_impl<64, sign::yes> { using type =  int64_t; };
@@ -73,8 +79,14 @@ namespace pack {
 		template<> struct integer_impl<8,  sign::yes> { using type =  int8_t ; };
 	}
 
+	// This is the public interface to the integer types defined above.
 	template<size_t size, sign signedness> using integer_for = typename integer_impl<size, signedness>::type;
 
+	// Now follow a bunch of encoders. These are usually combined into a format.
+	// They all have a std::string pack(T) and an
+	// T unpack(std::string::const_iterator&, const std::string::const_iterator&) method.
+
+	// A type for fixed-sized integers
 	template<size_t size, sign sign = sign::no, endian order = endian::big> struct integral {
 		using data_type = integer_for<size, sign>;
 		static std::string pack(data_type value) noexcept {
@@ -94,7 +106,10 @@ namespace pack {
 		}
 	};
 
+	// This defines compressed integers, like in BER or Protocol Buffers.
 	template<sign sign = sign::no, endian order = endian::little, size_t max_size = 64> struct compressed;
+
+	// The specialization for little-endian compressed integers, like in Protocol Buffers.
 	template<size_t max_size> struct compressed<sign::no, endian::little, max_size> {
 		using data_type = integer_for<max_size, sign::no>;
 		static constexpr size_t block_size = 1 << 7;
@@ -129,6 +144,7 @@ namespace pack {
 		}
 	};
 
+	// This defines big-endian compressed integers, like in BER
 	template<size_t max_size> struct compressed<sign::no, endian::big, max_size> {
 		using data_type = integer_for<max_size, sign::no>;
 		static constexpr size_t block_size = 1 << 7;
@@ -164,6 +180,8 @@ namespace pack {
 		}
 	};
 
+	// This defines signed compressed integers. It performs zigzag encoding, but
+	// otherwise refers to the matching unsigned implementation.
 	template<endian order, size_t max_size> struct compressed<sign::yes, order, max_size> {
 		using data_type = integer_for<max_size, sign::yes>;
 		using parent = compressed<sign::no, order, max_size>;
@@ -183,7 +201,9 @@ namespace pack {
 		}
 	};
 
+	// This defines various helper type for padding of fixed integers.
 	namespace padding {
+		// No padding, so length must strictly match.
 		struct none {
 			static std::string add_padding(const std::string& value, size_t length) noexcept(false) {
 				if (value.size() != length)
@@ -195,6 +215,8 @@ namespace pack {
 			}
 		};
 
+		// Padding by a specific character, so undersized input is allowed, but ending
+		// the string on that character is lossy.
 		template<char character> struct byte {
 			static std::string add_padding(std::string value, size_t length) noexcept(false) {
 				if (value.length() == length)
@@ -218,6 +240,7 @@ namespace pack {
 		using space = byte<' '>;
 	}
 
+	// A fixed sized string, with optional padding.
 	template<int length, typename pad = padding::none> struct fixed_string {
 		using data_type = std::string;
 		static std::string pack(std::string value) noexcept(false) {
@@ -234,8 +257,10 @@ namespace pack {
 		}
 	};
 
+	// A variable length string, prepended by it's length encoded by length_encoder
 	template<typename length_encoder> struct varchar {
 		using data_type = std::string;
+		static_assert(std::is_integral<typename length_encoder::data_type>::value, "length_encoder must encode for an integer");
 		static std::string pack(std::string value) noexcept(noexcept(length_encoder::pack(value.size()))) {
 			return length_encoder::pack(value.size()) + value;
 		}
@@ -251,8 +276,10 @@ namespace pack {
 		}
 	};
 
+	// A sequence of any of the above, preceded by a count of the elements
 	template<typename element_encoder, typename length_encoder> struct sequence {
 		using element_type = typename element_encoder::data_type;
+		static_assert(std::is_integral<typename length_encoder::data_type>::value, "length_encoder must encode for an integer");
 		using data_type = std::vector<element_type>;
 		template<typename argument_type> static std::string pack(const std::vector<argument_type>& elements) noexcept(noexcept(length_encoder::pack(elements.size()))) {
 			std::string ret = length_encoder::pack(elements.size());
@@ -270,6 +297,7 @@ namespace pack {
 	};
 
 	namespace {
+		// A helper type for implementing format.
 		template<typename head_type, typename... tail_types> struct packer {
 			template<typename head_argument, typename... tail_arguments> static std::string pack(const head_argument& data, const tail_arguments&... arguments) {
 				return head_type::pack(std::move(data)) + packer<tail_types...>::pack(arguments...);
@@ -289,6 +317,7 @@ namespace pack {
 		};
 	}
 
+	// This combines the encoders above into a format.
 	template<typename... elements> class format {
 		typedef packer<elements...> my_packer;
 
