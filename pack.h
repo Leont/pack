@@ -300,19 +300,18 @@ namespace pack {
 		// A helper type for implementing format.
 		template<typename head_type, typename... tail_types> struct packer {
 			template<typename head_argument, typename... tail_arguments> static std::string pack(const head_argument& data, const tail_arguments&... arguments) {
-				return head_type::pack(std::move(data)) + packer<tail_types...>::pack(arguments...);
+				if constexpr (sizeof...(tail_types) > 0)
+					return head_type::pack(data) + packer<tail_types...>::pack(arguments...);
+				else
+					return head_type::pack(data);
 			}
-			static std::tuple<typename head_type::data_type, typename tail_types::data_type...> unpack(std::string::const_iterator& current, const std::string::const_iterator& end) noexcept(false) {
-				auto first = std::make_tuple(head_type::unpack(current, end));
-				return tuple_cat(std::move(first), packer<tail_types...>::unpack(current, end));
-			}
-		};
-		template<typename head_type> struct packer<head_type> {
-			template<typename head_argument> static std::string pack(const head_argument& data) {
-				return head_type::pack(data);
-			}
-			static std::tuple<typename head_type::data_type> unpack(std::string::const_iterator& current, const std::string::const_iterator& end) noexcept(false) {
-				return std::make_tuple(head_type::unpack(current, end));
+			static auto unpack(std::string::const_iterator& current, const std::string::const_iterator& end) noexcept(false) {
+				if constexpr (sizeof...(tail_types) > 0) {
+					auto first = std::make_tuple(head_type::unpack(current, end));
+					return tuple_cat(std::move(first), packer<tail_types...>::unpack(current, end));
+				}
+				else
+					return std::make_tuple(head_type::unpack(current, end));
 			}
 		};
 	}
