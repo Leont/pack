@@ -318,20 +318,20 @@ namespace pack {
 
 	// This combines the encoders above into a format.
 	template<typename... elements> class format {
-		typedef packer<elements...> my_packer;
+		using my_packer = packer<elements...>;
 
 		public:
 		template<typename... argument_types> static std::string pack(const argument_types&... arguments) {
 			return my_packer::pack(arguments...);
 		}
-		static std::tuple<typename elements::data_type...> unpack(const std::string& packed) noexcept(false) {
+		static auto unpack(const std::string& packed) noexcept(false) {
 			auto current = packed.begin();
 			auto ret = my_packer::unpack(current, packed.end());
 			if (current != packed.end())
 				throw exception::incomplete_parse(current - packed.begin(), packed.size());
 			return ret;
 		}
-		static std::tuple<typename elements::data_type...> unpack(const std::string& packed, std::string::const_iterator& end) noexcept(false) {
+		static auto unpack(const std::string& packed, std::string::const_iterator& end) noexcept(false) {
 			end = packed.begin();
 			return my_packer::unpack(end, packed.end());
 		}
