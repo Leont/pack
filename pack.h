@@ -342,4 +342,12 @@ namespace pack {
 			return my_packer::unpack(end, packed.end());
 		}
 	};
+
+	template<typename... Types, typename... Args> std::string pack(Args&&... args) {
+		return format<Types...>::pack(std::forward<Args>(args)...);
+	}
+
+	template<typename... Types> auto unpack(const std::string& packed) {
+		return format<Types...>::unpack(packed);
+	}
 }
