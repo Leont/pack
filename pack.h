@@ -89,8 +89,14 @@ namespace pack {
 	// A type for fixed-sized integers
 	template<size_t size, sign sign = sign::no, endian order = endian::big> struct integral {
 		using data_type = integer_for<size, sign>;
-		static std::string pack(data_type value) noexcept {
-			converter<data_type> newval = value_copy<order>(converter<data_type>{value});
+		using big_type = integer_for<64, sign>;
+		using limits = std::numeric_limits<data_type>;
+		static std::string pack(big_type value) noexcept(false) {
+			if (value > limits::max() || value < limits::min()) {
+				const std::string error = "Value " + std::to_string(value) + "doesn't fit into designated integer";
+				throw exception::invalid_input(error);
+			}
+			converter<data_type> newval = value_copy<order>(converter<data_type>{data_type(value)});
 			return std::string(newval.charval.begin(), newval.charval.end());
 		}
 		static data_type unpack(std::string::const_iterator& current, const std::string::const_iterator& end) {
