@@ -17,9 +17,9 @@ namespace pack {
 	// well as all unpack functions. Where possible this is marked using noexcept.
 	namespace exception {
 		class base: public std::exception {
-			const std::string message;
+			std::string message;
 			protected:
-			explicit base(const std::string& _message) : message(_message) { }
+			explicit base(std::string _message) : message(std::move(_message)) { }
 			public:
 			virtual const char* what() const noexcept override final {
 				return message.c_str();
@@ -27,14 +27,14 @@ namespace pack {
 		};
 		class invalid_input : public base {
 			public:
-			explicit invalid_input(const std::string& _message) : base(_message) { }
+			explicit invalid_input(std::string _message) : base(_message) { }
 		};
 		class invalid_output : public base {
 			using base::base;
 		};
 		class out_of_bounds : public invalid_output {
 			public:
-			explicit out_of_bounds(const std::string& type) : invalid_output("Insufficient data in buffer to unpack " + type) {
+			explicit out_of_bounds(std::string type) : invalid_output("Insufficient data in buffer to unpack " + std::move(type)) {
 			}
 		};
 		class incomplete_parse : public base {
