@@ -241,7 +241,7 @@ namespace pack {
 	}
 
 	// A fixed sized string, with optional padding.
-	template<int length, typename pad = padding::none> struct fixed_string {
+	template<size_t length, typename pad = padding::none> struct fixed_string {
 		using data_type = std::string;
 		static std::string pack(std::string value) noexcept(false) {
 			return pad::add_padding(value, length);
