@@ -1,11 +1,11 @@
 #include <iostream>
 #include <iomanip>
 #include <unistd.h>
-#include <pack.h>
+#include <packing.h>
 
 using namespace std;
 using namespace std::literals;
-using namespace pack;
+using namespace packing;
 
 static void print_string(const std::string& packed) {
 	cout << "Bytes are";
@@ -49,7 +49,7 @@ int main(int, char**) {
 
 		return EXIT_SUCCESS;
 	}
-	catch (const pack::exception::base& error) {
+	catch (const packing::exception::base& error) {
 		std::cerr << error.what() << std::endl;
 		return EXIT_FAILURE;
 	}

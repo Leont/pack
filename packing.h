@@ -12,7 +12,7 @@
 #define NATIVE_ENDIAN little
 #endif
 
-namespace pack {
+namespace packing {
 	// The exception hierarchy. Some pack functions can throw an exception, as
 	// well as all unpack functions. Where possible this is marked using noexcept.
 	namespace exception {
